@@ -2,7 +2,7 @@
 
 > A modern, responsive personal finance dashboard built with React, Vite, Express, and MongoDB.
 
-![App Screenshot](public/screenshots/app_screenshot.png)
+
 
 ---
 
