@@ -1,38 +1,66 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-} from 'firebase/auth'
-import { auth } from '../firebase/config'
 
 const AuthContext = createContext(null)
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+/** Normalize the server user shape to what the rest of the app expects */
+function normalizeUser(u) {
+  return {
+    ...u,
+    displayName: u.name,
+    // Mirror Firebase's metadata.creationTime so Navbar's joinedDate still works
+    metadata: { creationTime: u.createdAt },
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // ── Restore session on mount ──────────────────────────────
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser)
-      setLoading(false)
+    const token = localStorage.getItem('ft_token')
+    if (!token) { setLoading(false); return }
+
+    fetch(`${API}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
-    return unsubscribe
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((u) => setUser(normalizeUser(u)))
+      .catch(() => localStorage.removeItem('ft_token'))
+      .finally(() => setLoading(false))
   }, [])
 
+  // ── Auth actions ──────────────────────────────────────────
   const signup = async (email, password, name) => {
-    const result = await createUserWithEmailAndPassword(auth, email, password)
-    await updateProfile(result.user, { displayName: name.trim() })
-    setUser({ ...result.user, displayName: name.trim() })
-    return result
+    const r = await fetch(`${API}/api/auth/signup`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, email, password }),
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.message)
+    localStorage.setItem('ft_token', data.token)
+    setUser(normalizeUser(data.user))
   }
 
-  const login = (email, password) =>
-    signInWithEmailAndPassword(auth, email, password)
+  const login = async (email, password) => {
+    const r = await fetch(`${API}/api/auth/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.message)
+    localStorage.setItem('ft_token', data.token)
+    setUser(normalizeUser(data.user))
+  }
 
-  const logout = () => signOut(auth)
+  const logout = () => {
+    localStorage.removeItem('ft_token')
+    setUser(null)
+  }
 
   return (
     <AuthContext.Provider value={{ user, loading, signup, login, logout }}>

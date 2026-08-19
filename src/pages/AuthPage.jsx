@@ -5,8 +5,8 @@ import styles from './AuthPage.module.css'
 
 const FEATURES = [
   { icon: '📊', text: 'Visual spending breakdowns' },
-  { icon: '🔒', text: 'Secure Firebase storage' },
-  { icon: '⚡', text: 'Real-time sync across devices' },
+  { icon: '🔒', text: 'Secure JWT authentication' },
+  { icon: '🍃', text: 'MongoDB-powered storage' },
   { icon: '🌙', text: 'Dark & light mode' },
 ]
 
@@ -35,15 +35,7 @@ export default function AuthPage() {
         await signup(email, password, name)
       }
     } catch (err) {
-      const msgs = {
-        'auth/user-not-found':       'No account found with this email.',
-        'auth/wrong-password':       'Incorrect password.',
-        'auth/email-already-in-use': 'An account with this email already exists.',
-        'auth/invalid-email':        'Please enter a valid email address.',
-        'auth/too-many-requests':    'Too many attempts. Try again later.',
-        'auth/invalid-credential':   'Invalid email or password.',
-      }
-      setError(msgs[err.code] || 'Something went wrong. Please try again.')
+      setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }

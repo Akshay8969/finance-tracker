@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-} from 'firebase/firestore'
-import { db } from '../firebase/config'
-import { useAuth } from '../context/AuthContext'
-import { sortTransactions } from '../utils/helpers'
+import { useAuth }           from '../context/AuthContext'
+import { sortTransactions }  from '../utils/helpers'
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+function authHeaders() {
+  const token = localStorage.getItem('ft_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization:  `Bearer ${token}`,
+  }
+}
+
+/** Normalize MongoDB _id → id so the rest of the app works unchanged */
+function normalizeDoc(doc) {
+  return { ...doc, id: doc._id }
+}
 
 export function useTransactions() {
   const { user } = useAuth()
@@ -19,77 +23,84 @@ export function useTransactions() {
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
 
-  // ── Real-time Firestore listener 
-  useEffect(() => {
-    if (!user) {
-      setTransactions([])
-      setLoading(false)
-      return
-    }
-
+  // ── Fetch all transactions for the current user ───────────
+  const fetchTransactions = useCallback(async () => {
+    if (!user) { setTransactions([]); setLoading(false); return }
     setLoading(true)
-
-    // Stored at: users/{uid}/transactions
-    const txCol = collection(db, 'users', user.uid, 'transactions')
-    const q     = query(txCol, orderBy('date', 'desc'))
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
-        setTransactions(data)
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Firestore error:', err)
-        setError(err.message)
-        setLoading(false)
-      }
-    )
-
-    return unsubscribe
+    try {
+      const r = await fetch(`${API}/api/transactions`, { headers: authHeaders() })
+      if (!r.ok) throw new Error('Failed to fetch transactions')
+      const data = await r.json()
+      setTransactions(data.map(normalizeDoc))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }, [user])
 
-  // ── Derived totals ─────────────────────────────────────────
+  useEffect(() => { fetchTransactions() }, [fetchTransactions])
+
+  // ── Derived totals ────────────────────────────────────────
   const totalIncome  = transactions.filter(t => t.type === 'income') .reduce((s, t) => s + t.amount, 0)
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const balance      = totalIncome - totalExpense
 
-  // ── CRUD ───────────────────────────────────────────────────
+  // ── CRUD ──────────────────────────────────────────────────
   const addTransaction = useCallback(async (data) => {
     if (!user) return
-    const txCol = collection(db, 'users', user.uid, 'transactions')
-    await addDoc(txCol, { ...data, amount: Number(data.amount), createdAt: new Date().toISOString() })
-  }, [user])
+    const r = await fetch(`${API}/api/transactions`, {
+      method:  'POST',
+      headers: authHeaders(),
+      body:    JSON.stringify({ ...data, amount: Number(data.amount) }),
+    })
+    if (!r.ok) {
+      const err = await r.json()
+      throw new Error(err.message)
+    }
+    await fetchTransactions()
+  }, [user, fetchTransactions])
 
   const updateTransaction = useCallback(async (id, data) => {
     if (!user) return
-    const txDoc = doc(db, 'users', user.uid, 'transactions', id)
-    await updateDoc(txDoc, { ...data, amount: Number(data.amount) })
-  }, [user])
+    const r = await fetch(`${API}/api/transactions/${id}`, {
+      method:  'PUT',
+      headers: authHeaders(),
+      body:    JSON.stringify({ ...data, amount: Number(data.amount) }),
+    })
+    if (!r.ok) {
+      const err = await r.json()
+      throw new Error(err.message)
+    }
+    await fetchTransactions()
+  }, [user, fetchTransactions])
 
   const deleteTransaction = useCallback(async (id) => {
     if (!user) return
-    const txDoc = doc(db, 'users', user.uid, 'transactions', id)
-    await deleteDoc(txDoc)
-  }, [user])
+    const r = await fetch(`${API}/api/transactions/${id}`, {
+      method:  'DELETE',
+      headers: authHeaders(),
+    })
+    if (!r.ok) {
+      const err = await r.json()
+      throw new Error(err.message)
+    }
+    await fetchTransactions()
+  }, [user, fetchTransactions])
 
-  // ── Filtering + sorting ────────────────────────────────────
+  // ── Filtering + sorting ───────────────────────────────────
   const getFiltered = useCallback(({
     search = '', filterType = 'all', filterCategory = 'all', sortBy = 'date_desc',
   }) => {
     let result = transactions
-
-    if (filterType !== 'all')     result = result.filter(t => t.type === filterType)
+    if (filterType     !== 'all') result = result.filter(t => t.type     === filterType)
     if (filterCategory !== 'all') result = result.filter(t => t.category === filterCategory)
-
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(t =>
         t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)
       )
     }
-
     return sortTransactions(result, sortBy)
   }, [transactions])
 
