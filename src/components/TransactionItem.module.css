@@ -1,0 +1,120 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s, transform 0.15s;
+  animation: fadeUp 0.3s ease both;
+}
+
+.item:hover {
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+
+/* ── Category bubble ──────────────────────────── */
+.iconBubble {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+/* ── Info ─────────────────────────────────────── */
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.tag {
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Amount ───────────────────────────────────── */
+.amount {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── Actions ──────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.item:hover .actions,
+.item:focus-within .actions {
+  opacity: 1;
+}
+
+.actionBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.edit:hover {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(244, 63, 94, 0.1);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 480px) {
+  .date     { display: none; }
+  .actions  { opacity: 1; }
+}

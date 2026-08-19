@@ -1,0 +1,23 @@
+# Normalize line endings
+* text=auto
+
+# Force LF for shell scripts (must have LF on Linux EC2)
+*.sh text eol=lf
+
+# Force LF for CI files
+Jenkinsfile text eol=lf
+Dockerfile text eol=lf
+nginx.conf text eol=lf
+.dockerignore text eol=lf
+
+# Binary files — no conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
