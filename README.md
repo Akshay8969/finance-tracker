@@ -1,6 +1,6 @@
 # FinTrack – Personal Finance Tracker
 
-> A modern, responsive personal finance dashboard built with React, Vite, and Firebase.
+> A modern, responsive personal finance dashboard built with React, Vite, Express, and MongoDB.
 
 ![App Screenshot](public/screenshots/app_screenshot.png)
 
@@ -8,7 +8,7 @@
 
 ## ✨ Features
 
-- 🔐 **Authentication** — Email/password sign up & login via Firebase Auth
+- 🔐 **Authentication** — Secure sign up & login with JWT-based sessions
 - 💸 **Transaction Management** — Add, edit, and delete income & expense records
 - 🔍 **Filtering & Search** — Filter by type, category, or keyword; sort by date/amount
 - 📊 **Spending Chart** — Visual breakdown of expenses by category using Recharts
@@ -27,8 +27,10 @@
 | Build Tool | Vite 8 |
 | Styling | CSS Modules |
 | Routing | React Router DOM v7 |
-| Backend / Auth | Firebase v12 (Auth + Firestore) |
 | Charts | Recharts |
+| Backend | Express.js |
+| Database | MongoDB (Mongoose) |
+| Authentication | JWT + bcryptjs |
 
 ---
 
@@ -38,7 +40,17 @@
 finance-tracker/
 ├── public/
 │   └── screenshots/          # App screenshots
-├── src/
+├── server/                   # Express.js backend
+│   ├── index.js              # Entry point — connects to MongoDB, starts server
+│   ├── middleware/
+│   │   └── auth.js           # JWT verification middleware
+│   ├── models/
+│   │   ├── User.js           # User schema (bcrypt password hashing)
+│   │   └── Transaction.js    # Transaction schema
+│   └── routes/
+│       ├── auth.js           # POST /signup, POST /login, GET /me
+│       └── transactions.js   # Full CRUD for transactions
+├── src/                      # React frontend
 │   ├── main.jsx              # App entry point
 │   ├── App.jsx               # Root router & layout
 │   ├── index.css             # Global CSS variables & design tokens
@@ -61,17 +73,15 @@ finance-tracker/
 │   │   ├── Transactions.jsx  # Full transaction list view
 │   │   └── AuthPage.jsx      # Login / Sign up page
 │   ├── context/
-│   │   ├── AuthContext.jsx   # Firebase auth state
+│   │   ├── AuthContext.jsx   # JWT auth state (localStorage)
 │   │   └── ThemeContext.jsx  # Dark/light theme
 │   ├── hooks/
-│   │   ├── useTransactions.js  # Firestore CRUD + real-time sync
+│   │   ├── useTransactions.js  # REST API calls + state
 │   │   └── useToast.js
-│   ├── firebase/
-│   │   └── config.js         # Firebase initialisation (uses .env)
 │   └── utils/
 │       └── helpers.js        # Currency/date formatters, sort helpers
-├── .env.example              # Environment variable template
-├── package.json
+├── .env.example              # Environment variable template (see below)
+├── package.json              # Frontend deps + dev scripts
 └── vite.config.js
 ```
 
@@ -82,7 +92,7 @@ finance-tracker/
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or higher
-- A [Firebase](https://firebase.google.com/) project with **Authentication** (Email/Password) and **Firestore** enabled
+- A [MongoDB Atlas](https://www.mongodb.com/atlas) account (free tier works)
 
 ### 1. Clone the repository
 
@@ -94,50 +104,82 @@ cd finance-tracker
 ### 2. Install dependencies
 
 ```bash
+# Frontend
 npm install
+
+# Backend
+cd server && npm install && cd ..
 ```
 
 ### 3. Configure environment variables
 
-Copy the example file and fill in your Firebase credentials:
+Copy the example and fill in your values:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set your values:
+Open `.env`:
 
 ```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+# Frontend
+VITE_API_URL=http://localhost:5000
+
+# Backend
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/finance-tracker
+JWT_SECRET=your_long_random_secret
+PORT=5000
+CLIENT_URL=http://localhost:5173
 ```
 
-> ⚠️ Never commit your `.env` file — it is already listed in `.gitignore`.
+> ⚠️ Never commit `.env` — it's already in `.gitignore`.
 
-### 4. Start the development server
+### 4. Start the app
 
 ```bash
-npm run dev
+npm run dev:all
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+This starts both servers at once:
+- **Frontend** → [http://localhost:5173](http://localhost:5173)
+- **Backend**  → [http://localhost:5000](http://localhost:5000)
+
+Or run them separately:
+
+```bash
+npm run dev          # frontend only
+npm run dev:server   # backend only
+```
 
 ---
 
-## 🔥 Firebase Setup
+## 🌐 API Reference
 
-1. Go to [Firebase Console](https://console.firebase.google.com/) and create a project.
-2. Enable **Authentication → Sign-in method → Email/Password**.
-3. Enable **Firestore Database** in production or test mode.
-4. Copy your project's web app config values into `.env`.
+All `/api/transactions` routes require `Authorization: Bearer <token>` header.
 
-Firestore data is stored per user under:
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/signup` | Create account, returns JWT |
+| `POST` | `/api/auth/login` | Login, returns JWT |
+| `GET` | `/api/auth/me` | Get current user from token |
+| `GET` | `/api/transactions` | List all transactions for user |
+| `POST` | `/api/transactions` | Create a transaction |
+| `PUT` | `/api/transactions/:id` | Update a transaction |
+| `DELETE` | `/api/transactions/:id` | Delete a transaction |
+
+---
+
+## 🍃 MongoDB Setup
+
+1. Go to [cloud.mongodb.com](https://cloud.mongodb.com) and create a free cluster.
+2. Under **Database Access**, create a user with read/write access.
+3. Under **Network Access**, allow your IP (or `0.0.0.0/0` for anywhere).
+4. Click **Connect → Drivers** and copy the connection string into `MONGODB_URI` in your `.env`.
+
+Data is stored in two collections:
 ```
-users/{uid}/transactions/{transactionId}
+users          { name, email, password (hashed), createdAt }
+transactions   { userId, title, amount, type, category, date, createdAt }
 ```
 
 ---
@@ -146,8 +188,10 @@ users/{uid}/transactions/{transactionId}
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start local development server |
-| `npm run build` | Build for production |
+| `npm run dev` | Start frontend dev server |
+| `npm run dev:server` | Start backend dev server |
+| `npm run dev:all` | Start both frontend & backend together |
+| `npm run build` | Build frontend for production |
 | `npm run preview` | Preview the production build locally |
 
 ---
